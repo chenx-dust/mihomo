@@ -95,6 +95,12 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 		matcherName += "@" + attrs.String()
 	}
 	matcher, err, shared := loadGeoSiteMatcherSF.Do(matcherName, func() (router.DomainMatcher, error) {
+		// try loading from cache
+		if cached, err := loadDomainMatcherCache(matcherName); err == nil {
+			log.Infoln("Load GeoSite cache: %s", matcherName)
+			return cached, nil
+		}
+
 		log.Infoln("Load GeoSite rule: %s", matcherName)
 		domains, err, shared := loadGeoSiteMatcherListSF.Do(listName, func() ([]*router.Domain, error) {
 			geoLoader, err := GetGeoDataLoader(geoLoaderName)
@@ -134,11 +140,19 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 		matcher, err := router.NewDomainMatcher(domains)
 		mph：minimal perfect hash algorithm
 		*/
+		var m router.DomainMatcher
 		if geoSiteMatcher == "mph" {
-			return router.NewMphMatcherGroup(domains)
+			m, err = router.NewMphMatcherGroup(domains)
 		} else {
-			return router.NewSuccinctMatcherGroup(domains)
+			m, err = router.NewSuccinctMatcherGroup(domains)
 		}
+		if err != nil {
+			return nil, err
+		}
+
+		// save to cache
+		saveDomainMatcherCache(matcherName, m)
+		return m, nil
 	})
 	if err != nil {
 		if !shared {
@@ -168,6 +182,12 @@ func LoadGeoIPMatcher(country string) (router.IPMatcher, error) {
 	country = strings.ToLower(country)
 
 	matcher, err, shared := loadGeoIPMatcherSF.Do(country, func() (router.IPMatcher, error) {
+		// try loading from cache
+		if cached, err := loadIPMatcherCache(country); err == nil {
+			log.Infoln("Load GeoIP cache: %s", country)
+			return cached, nil
+		}
+
 		log.Infoln("Load GeoIP rule: %s", country)
 		geoLoader, err := GetGeoDataLoader(geoLoaderName)
 		if err != nil {
@@ -177,7 +197,14 @@ func LoadGeoIPMatcher(country string) (router.IPMatcher, error) {
 		if err != nil {
 			return nil, err
 		}
-		return router.NewGeoIPMatcher(cidrList)
+		m, err := router.NewGeoIPMatcher(cidrList)
+		if err != nil {
+			return nil, err
+		}
+
+		// save to cache
+		saveIPMatcherCache(country, m)
+		return m, nil
 	})
 	if err != nil {
 		if !shared {
