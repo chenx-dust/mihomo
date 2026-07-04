@@ -183,6 +183,10 @@ func (p *path) BundleMRS() string {
 	return P.Join(p.homeDir, BundleMRSName)
 }
 
+func (p *path) MatcherCache() string {
+	return P.Join(p.homeDir, "matcher")
+}
+
 func (p *path) OldCache() string {
 	return P.Join(p.homeDir, ".cache")
 }
