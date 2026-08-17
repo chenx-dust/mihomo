@@ -94,6 +94,10 @@ type RuleSetProvider struct {
 	*ruleSetProvider
 }
 
+func (rp *RuleSetProvider) Format() P.RuleFormat {
+	return rp.format
+}
+
 func (rp *ruleSetProvider) Initial() error {
 	_, err := rp.Fetcher.Initial()
 	return err
