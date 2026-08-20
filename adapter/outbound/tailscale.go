@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/common/atomic"
 	"github.com/metacubex/mihomo/component/ca"
 	"github.com/metacubex/mihomo/component/dialer"
 	"github.com/metacubex/mihomo/component/iface/anet"
@@ -25,6 +26,7 @@ import (
 	"github.com/metacubex/tailscale/envknob"
 	"github.com/metacubex/tailscale/hostinfo"
 	"github.com/metacubex/tailscale/ipn"
+	"github.com/metacubex/tailscale/ipn/ipnstate"
 	"github.com/metacubex/tailscale/net/netmon"
 	"github.com/metacubex/tailscale/tailcfg"
 	"github.com/metacubex/tailscale/tsnet"
@@ -46,7 +48,7 @@ type Tailscale struct {
 	backendInitCh   chan struct{}
 	backendInitErr  error
 
-	serverStarted bool
+	serverStarted atomic.Bool
 
 	unregisterDNSResolver func()
 }
@@ -190,7 +192,7 @@ func (t *Tailscale) start() error {
 			t.setBackendInitialized(err)
 			return
 		}
-		t.serverStarted = true
+		t.serverStarted.Store(true)
 		ctx, cancel := context.WithTimeout(t.ctx, 30*time.Second)
 		defer cancel()
 		if err := t.applyPrefs(ctx); err != nil {
@@ -208,6 +210,96 @@ func (t *Tailscale) ensureStarted(ctx context.Context) error {
 		return err
 	}
 	return t.waitBackendInitialized(ctx)
+}
+
+func GetTailscaleStatus(ctx context.Context, proxy C.ProxyAdapter, includeDetails bool, activate bool) (*ipnstate.Status, error) {
+	switch adapter := proxy.(type) {
+	case *Tailscale:
+		if activate {
+			if err := adapter.ensureStarted(ctx); err != nil {
+				return nil, err
+			}
+		} else if !adapter.serverStarted.Load() {
+			return &ipnstate.Status{BackendState: "NoState"}, nil
+		}
+		client, err := adapter.server.LocalClient()
+		if err != nil {
+			return nil, err
+		}
+		if includeDetails {
+			return client.Status(ctx)
+		}
+		return client.StatusWithoutPeers(ctx)
+	case *autoCloseProxyAdapter:
+		return GetTailscaleStatus(ctx, adapter.ProxyAdapter, includeDetails, activate)
+	default:
+		return nil, fmt.Errorf("proxy %q is not a Tailscale outbound", proxy.Name())
+	}
+}
+
+func TailscaleAuthKeyConfigured(proxy C.ProxyAdapter) bool {
+	switch adapter := proxy.(type) {
+	case *Tailscale:
+		return adapter.option.AuthKey != ""
+	case *autoCloseProxyAdapter:
+		return TailscaleAuthKeyConfigured(adapter.ProxyAdapter)
+	default:
+		return false
+	}
+}
+
+func PingTailscaleNode(ctx context.Context, proxy C.ProxyAdapter, ip string) (time.Duration, error) {
+	address, err := netip.ParseAddr(ip)
+	if err != nil {
+		return 0, fmt.Errorf("invalid Tailscale IP %q: %w", ip, err)
+	}
+	switch adapter := proxy.(type) {
+	case *Tailscale:
+		if err = adapter.ensureStarted(ctx); err != nil {
+			return 0, err
+		}
+		client, clientErr := adapter.server.LocalClient()
+		if clientErr != nil {
+			return 0, clientErr
+		}
+		result, pingErr := client.Ping(ctx, address, tailcfg.PingDisco)
+		if pingErr != nil {
+			return 0, pingErr
+		}
+		if result.Err != "" {
+			return 0, errors.New(result.Err)
+		}
+		return time.Duration(result.LatencySeconds * float64(time.Second)), nil
+	case *autoCloseProxyAdapter:
+		return PingTailscaleNode(ctx, adapter.ProxyAdapter, ip)
+	default:
+		return 0, fmt.Errorf("proxy %q is not a Tailscale outbound", proxy.Name())
+	}
+}
+
+func LogoutTailscale(ctx context.Context, proxy C.ProxyAdapter) error {
+	switch adapter := proxy.(type) {
+	case *Tailscale:
+		if adapter.option.AuthKey != "" {
+			return fmt.Errorf("tailscale auth key is configured, logout is not allowed")
+		}
+		if err := adapter.ensureStarted(ctx); err != nil {
+			return err
+		}
+		client, err := adapter.server.LocalClient()
+		if err != nil {
+			return err
+		}
+		err = client.Logout(ctx)
+		if err != nil {
+			return err
+		}
+		return client.StartLoginInteractive(ctx)
+	case *autoCloseProxyAdapter:
+		return LogoutTailscale(ctx, adapter.ProxyAdapter)
+	default:
+		return fmt.Errorf("proxy %q is not a Tailscale outbound", proxy.Name())
+	}
 }
 
 func (t *Tailscale) watchBackendState() {
@@ -472,7 +564,7 @@ func (t *Tailscale) Close() error {
 	t.startOnce.Do(func() {
 		t.startErr = errors.New("tailscale outbound closed")
 	})
-	if t.server != nil && t.serverStarted { // tsnet.Server.Close() must not be called before or concurrently with Start.
+	if t.server != nil && t.serverStarted.Load() { // tsnet.Server.Close() must not be called before or concurrently with Start.
 		return t.server.Close()
 	}
 	return nil
