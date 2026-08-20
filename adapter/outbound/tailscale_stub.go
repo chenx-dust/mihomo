@@ -2,7 +2,14 @@
 
 package outbound
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"time"
+
+	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/tailscale/ipn/ipnstate"
+)
 
 type Tailscale struct {
 	*Base
@@ -25,4 +32,20 @@ type TailscaleOption struct {
 
 func NewTailscale(option TailscaleOption) (*Tailscale, error) {
 	return nil, fmt.Errorf("tailscale support is disabled by \"no_tailscale\" build tag or not include \"with_gvisor\" build tag")
+}
+
+func GetTailscaleStatus(ctx context.Context, proxy C.ProxyAdapter, includeDetails bool, activate bool) (*ipnstate.Status, error) {
+	return nil, fmt.Errorf("tailscale support is disabled by \"no_tailscale\" build tag or not include \"with_gvisor\" build tag")
+}
+
+func TailscaleAuthKeyConfigured(proxy C.ProxyAdapter) bool {
+	return false
+}
+
+func PingTailscaleNode(ctx context.Context, proxy C.ProxyAdapter, ip string) (time.Duration, error) {
+	return 0, fmt.Errorf("tailscale support is disabled by \"no_tailscale\" build tag or not include \"with_gvisor\" build tag")
+}
+
+func LogoutTailscale(ctx context.Context, proxy C.ProxyAdapter) error {
+	return fmt.Errorf("tailscale support is disabled by \"no_tailscale\" build tag or not include \"with_gvisor\" build tag")
 }

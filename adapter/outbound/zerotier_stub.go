@@ -2,7 +2,11 @@
 
 package outbound
 
-import "fmt"
+import (
+	"fmt"
+
+	C "github.com/metacubex/mihomo/constant"
+)
 
 type ZeroTier struct {
 	*Base
@@ -39,4 +43,8 @@ type ZeroTierOrbitOption struct {
 
 func NewZeroTier(ZeroTierOption) (*ZeroTier, error) {
 	return nil, fmt.Errorf("ZeroTier support is disabled by \"no_zerotier\" build tag")
+}
+
+func GetZeroTierStatus(C.ProxyAdapter, bool, bool) (ZeroTierStatus, error) {
+	return ZeroTierStatus{}, fmt.Errorf("ZeroTier support is disabled by \"no_zerotier\" build tag")
 }
