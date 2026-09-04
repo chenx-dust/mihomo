@@ -121,6 +121,9 @@ func (hc *HealthCheck) touch() {
 }
 
 func (hc *HealthCheck) check() {
+	if healthCheckSuspended.Load() {
+		return
+	}
 	if len(hc.proxies) == 0 {
 		return
 	}
