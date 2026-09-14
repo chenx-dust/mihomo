@@ -15,7 +15,7 @@ dns:
 
 tun:
   enable: true
-  device: mihomo-mips-test
+  device: mihomo
   stack: mips
   auto-route: false
   auto-detect-interface: true

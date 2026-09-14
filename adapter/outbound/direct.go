@@ -2,7 +2,9 @@ package outbound
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/netip"
 
 	"github.com/metacubex/mihomo/component/dialer"
 	"github.com/metacubex/mihomo/component/loopback"
@@ -23,7 +25,11 @@ type DirectOption struct {
 // DialContext implements C.ProxyAdapter
 func (d *Direct) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
 	if err := d.loopBack.CheckConn(metadata); err != nil {
-		return nil, err
+		if !errors.Is(err, loopback.ErrReject) {
+			return nil, err
+		}
+		metadata.Host = ""
+		metadata.DstIP = netip.MustParseAddr("127.0.0.1")
 	}
 	opts := d.DialOptions()
 	opts = append(opts, dialer.WithResolver(resolver.DirectHostResolver))
@@ -37,7 +43,11 @@ func (d *Direct) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn,
 // ListenPacketContext implements C.ProxyAdapter
 func (d *Direct) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (C.PacketConn, error) {
 	if err := d.loopBack.CheckPacketConn(metadata); err != nil {
-		return nil, err
+		if !errors.Is(err, loopback.ErrReject) {
+			return nil, err
+		}
+		metadata.Host = ""
+		metadata.DstIP = netip.MustParseAddr("127.0.0.1")
 	}
 	if err := d.ResolveUDP(ctx, metadata); err != nil {
 		return nil, err
