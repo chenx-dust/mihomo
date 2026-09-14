@@ -3,11 +3,14 @@ package router
 import (
 	"fmt"
 	"net/netip"
+	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/metacubex/mihomo/component/cidr"
 	"github.com/metacubex/mihomo/component/geodata/strmatcher"
 	"github.com/metacubex/mihomo/component/trie"
+	"github.com/metacubex/mihomo/constant/features"
 )
 
 var matcherTypeMap = map[Domain_Type]strmatcher.Type{
@@ -64,7 +67,7 @@ func NewSuccinctMatcherGroup(domains []*Domain) (DomainMatcher, error) {
 	m := &succinctDomainMatcher{
 		count: len(domains),
 	}
-	for _, d := range domains {
+	for i, d := range domains {
 		switch d.Type {
 		case Domain_Plain, Domain_Regex:
 			matcher, err := matcherTypeMap[d.Type].New(d.Value)
@@ -85,8 +88,21 @@ func NewSuccinctMatcherGroup(domains []*Domain) (DomainMatcher, error) {
 				return nil, err
 			}
 		}
+		domains[i] = nil
+		if features.WithLowMemory && i%16384 == 0 {
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
 	}
 	m.set = builder.Build()
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}
 	return m, nil
 }
 
@@ -97,7 +113,7 @@ type v2rayDomainMatcher struct {
 
 func NewMphMatcherGroup(domains []*Domain) (DomainMatcher, error) {
 	g := strmatcher.NewMphMatcherGroup()
-	for _, d := range domains {
+	for i, d := range domains {
 		matcherType, f := matcherTypeMap[d.Type]
 		if !f {
 			return nil, fmt.Errorf("unsupported domain type %v", d.Type)
@@ -106,8 +122,21 @@ func NewMphMatcherGroup(domains []*Domain) (DomainMatcher, error) {
 		if err != nil {
 			return nil, err
 		}
+		domains[i] = nil
+		if features.WithLowMemory && i%16384 == 0 {
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
 	}
 	g.Build()
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}
 	return &v2rayDomainMatcher{
 		matchers: g,
 		count:    len(domains),
@@ -158,7 +187,7 @@ func NewGeoIPMatcher(cidrList []*CIDR) (IPMatcher, error) {
 		cidrSet: cidr.NewIpCidrSet(),
 		count:   len(cidrList),
 	}
-	for _, cidr := range cidrList {
+	for i, cidr := range cidrList {
 		addr, ok := netip.AddrFromSlice(cidr.Ip)
 		if !ok {
 			return nil, fmt.Errorf("error when loading GeoIP: invalid IP: %s", cidr.Ip)
@@ -167,8 +196,21 @@ func NewGeoIPMatcher(cidrList []*CIDR) (IPMatcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error when loading GeoIP: %w", err)
 		}
+		cidrList[i] = nil
+		if features.WithLowMemory && i%16384 == 0 {
+			runtime.GC()
+			debug.FreeOSMemory()
+		}
+	}
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
 	}
 	err := m.cidrSet.Merge()
+	if features.WithLowMemory {
+		runtime.GC()
+		debug.FreeOSMemory()
+	}
 	if err != nil {
 		return nil, err
 	}

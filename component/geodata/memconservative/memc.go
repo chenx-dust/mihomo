@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"runtime/debug"
 
 	"github.com/metacubex/mihomo/component/geodata"
 	"github.com/metacubex/mihomo/component/geodata/router"
@@ -16,6 +17,7 @@ type memConservativeLoader struct {
 
 func (m *memConservativeLoader) LoadIPByPath(filename, country string) ([]*router.CIDR, error) {
 	defer runtime.GC()
+	defer debug.FreeOSMemory()
 	geoip, err := m.geoipcache.Unmarshal(filename, country)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %s", filename, err.Error())
@@ -29,6 +31,7 @@ func (m *memConservativeLoader) LoadIPByBytes(geoipBytes []byte, country string)
 
 func (m *memConservativeLoader) LoadSiteByPath(filename, list string) ([]*router.Domain, error) {
 	defer runtime.GC()
+	defer debug.FreeOSMemory()
 	geosite, err := m.geositecache.Unmarshal(filename, list)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode geodata file: %s, base error: %s", filename, err.Error())
