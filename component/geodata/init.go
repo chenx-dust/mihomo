@@ -12,6 +12,7 @@ import (
 	mihomoHttp "github.com/metacubex/mihomo/component/http"
 	"github.com/metacubex/mihomo/component/mmdb"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/constant/features"
 	"github.com/metacubex/mihomo/log"
 
 	"github.com/metacubex/http"
@@ -88,6 +89,10 @@ func downloadToPath(url string, path string) (err error) {
 }
 
 func InitGeoSite() error {
+	if features.WithLowMemory {
+		geoSiteEnable.Store(false)
+		return nil
+	}
 	geoSiteEnable.Store(true)
 	initGeoSiteMutex.Lock()
 	defer initGeoSiteMutex.Unlock()
@@ -115,6 +120,10 @@ func InitGeoSite() error {
 }
 
 func InitGeoIP() error {
+	if features.WithLowMemory {
+		geoIpEnable.Store(false)
+		return nil
+	}
 	geoIpEnable.Store(true)
 	initGeoIPMutex.Lock()
 	defer initGeoIPMutex.Unlock()
@@ -166,6 +175,10 @@ func InitGeoIP() error {
 }
 
 func InitASN() error {
+	if features.WithLowMemory {
+		asnEnable.Store(false)
+		return nil
+	}
 	asnEnable.Store(true)
 	initASNMutex.Lock()
 	defer initASNMutex.Unlock()
