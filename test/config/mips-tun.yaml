@@ -1,0 +1,22 @@
+# Minimal TUN configuration for exercising mihomo's MIPS IP stack.
+# Run on Linux with the required TUN permissions; auto-route is disabled so
+# starting mihomo does not modify the host routing table.
+
+mixed-port: 0
+allow-lan: false
+mode: direct
+log-level: debug
+
+dns:
+  enable: false
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.19.0.1/16
+
+tun:
+  enable: true
+  device: mihomo-mips-test
+  stack: mips
+  auto-route: false
+  auto-detect-interface: true
+  mtu: 9000
