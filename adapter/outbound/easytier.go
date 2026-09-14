@@ -42,6 +42,7 @@ type EasyTier struct {
 	cancel     context.CancelFunc
 	startOnce  sync.Once
 	startErr   error
+	state      string
 	mu         sync.Mutex
 	host       *corehost.Host
 	instance   *corehost.Instance
@@ -166,8 +167,18 @@ func NewEasyTier(option EasyTierOption) (*EasyTier, error) {
 
 func (e *EasyTier) start() error {
 	e.startOnce.Do(func() {
-		if err := e.init(); err != nil {
-			e.startErr = err
+		e.mu.Lock()
+		e.state = "starting"
+		e.mu.Unlock()
+		err := e.init()
+		e.mu.Lock()
+		e.startErr = err
+		e.state = "connected"
+		if err != nil {
+			e.state = "error"
+		}
+		e.mu.Unlock()
+		if err != nil {
 			_ = e.shutdown()
 		}
 	})
@@ -379,8 +390,13 @@ func (e *EasyTier) Close() error {
 		e.unregister()
 	}
 	e.startOnce.Do(func() {
+		e.mu.Lock()
 		e.startErr = errEasyTierClosed
+		e.mu.Unlock()
 	})
+	e.mu.Lock()
+	e.state = "stopped"
+	e.mu.Unlock()
 	return e.shutdown()
 }
 
