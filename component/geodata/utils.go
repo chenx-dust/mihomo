@@ -3,6 +3,7 @@ package geodata
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/metacubex/mihomo/common/singleflight"
 	"github.com/metacubex/mihomo/component/geodata/router"
@@ -15,8 +16,6 @@ var (
 	geoLoaderName  = "memconservative"
 	geoSiteMatcher = "succinct"
 )
-
-//  geoLoaderName = "standard"
 
 func GeodataMode() bool {
 	return geoMode
@@ -65,8 +64,11 @@ func Verify(name string) error {
 
 var loadGeoSiteMatcherListSF = singleflight.Group[[]*router.Domain]{StoreResult: true}
 var loadGeoSiteMatcherSF = singleflight.Group[router.DomainMatcher]{StoreResult: true}
+var geoSiteCacheMu sync.RWMutex
 
 func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
+	geoSiteCacheMu.RLock()
+	defer geoSiteCacheMu.RUnlock()
 	if countryCode == "" {
 		return nil, fmt.Errorf("country code could not be empty")
 	}
@@ -135,11 +137,6 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 			domains = filteredDomains
 		}
 
-		/**
-		linear: linear algorithm
-		matcher, err := router.NewDomainMatcher(domains)
-		mph：minimal perfect hash algorithm
-		*/
 		var m router.DomainMatcher
 		if geoSiteMatcher == "mph" {
 			m, err = router.NewMphMatcherGroup(domains)
@@ -150,9 +147,7 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 			return nil, err
 		}
 
-		// save to cache
-		saveDomainMatcherCache(matcherName, m)
-		return m, nil
+		return saveDomainMatcherCache(matcherName, m), nil
 	})
 	if err != nil {
 		if !shared {
@@ -168,8 +163,11 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 }
 
 var loadGeoIPMatcherSF = singleflight.Group[router.IPMatcher]{StoreResult: true}
+var geoIPCacheMu sync.RWMutex
 
 func LoadGeoIPMatcher(country string) (router.IPMatcher, error) {
+	geoIPCacheMu.RLock()
+	defer geoIPCacheMu.RUnlock()
 	if len(country) == 0 {
 		return nil, fmt.Errorf("country code could not be empty")
 	}
@@ -202,9 +200,7 @@ func LoadGeoIPMatcher(country string) (router.IPMatcher, error) {
 			return nil, err
 		}
 
-		// save to cache
-		saveIPMatcherCache(country, m)
-		return m, nil
+		return saveIPMatcherCache(country, m), nil
 	})
 	if err != nil {
 		if !shared {
@@ -220,10 +216,16 @@ func LoadGeoIPMatcher(country string) (router.IPMatcher, error) {
 }
 
 func ClearGeoSiteCache() {
+	geoSiteCacheMu.Lock()
+	defer geoSiteCacheMu.Unlock()
+	removeMatcherCaches("geosite_")
 	loadGeoSiteMatcherListSF.Reset()
 	loadGeoSiteMatcherSF.Reset()
 }
 
 func ClearGeoIPCache() {
+	geoIPCacheMu.Lock()
+	defer geoIPCacheMu.Unlock()
+	removeMatcherCaches("geoip_")
 	loadGeoIPMatcherSF.Reset()
 }
