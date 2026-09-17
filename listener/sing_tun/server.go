@@ -18,6 +18,7 @@ import (
 	"github.com/metacubex/mihomo/component/iface"
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/constant/features"
 	P "github.com/metacubex/mihomo/constant/provider"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/listener/sing"
@@ -157,7 +158,9 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 	if options.FileDescriptor > 0 {
 		if tunnelName, err := getTunnelName(int32(options.FileDescriptor)); err == nil {
 			tunName = tunnelName // sing-tun must have the truth tun interface name even it from a fd
-			//forwarderBindInterface = true
+			if features.IOS {
+				forwarderBindInterface = true
+			}
 			log.Debugln("[TUN] use tun name %s for fd %d", tunnelName, options.FileDescriptor)
 		} else {
 			log.Warnln("[TUN] get tun name failed for fd %d, fallback to use tun interface name %s", options.FileDescriptor, tunName)
