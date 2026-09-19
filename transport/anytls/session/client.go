@@ -10,10 +10,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
+	"github.com/metacubex/mihomo/constant/features"
 	"github.com/metacubex/mihomo/transport/anytls/padding"
 	"github.com/metacubex/mihomo/transport/anytls/skiplist"
 	"github.com/metacubex/mihomo/transport/anytls/util"
 )
+
+var idleSlots = semaphore.NewWeighted(16)
 
 type Client struct {
 	die       context.Context
@@ -101,6 +106,11 @@ func (c *Client) CreateStream(ctx context.Context) (net.Conn, error) {
 				session.Close()
 			default:
 				c.idleSessionLock.Lock()
+				if features.WithLowMemory && (session.IsClosed() || c.die.Err() != nil || !idleSlots.TryAcquire(1)) {
+					c.idleSessionLock.Unlock()
+					session.Close()
+					return
+				}
 				session.idleSince = time.Now()
 				c.idleSession.Insert(math.MaxUint64-session.seq, session)
 				c.idleSessionLock.Unlock()
@@ -116,7 +126,9 @@ func (c *Client) getIdleSession() (idle *Session) {
 	if !c.idleSession.IsEmpty() {
 		it := c.idleSession.Iterate()
 		idle = it.Value()
-		c.idleSession.Remove(it.Key())
+		if features.WithLowMemory && c.idleSession.Remove(it.Key()) {
+			idleSlots.Release(1)
+		}
 	}
 	c.idleSessionLock.Unlock()
 	return
@@ -133,7 +145,9 @@ func (c *Client) createSession(ctx context.Context) (*Session, error) {
 	session.dieHook = func() {
 		if !c.disableReuse {
 			c.idleSessionLock.Lock()
-			c.idleSession.Remove(math.MaxUint64 - session.seq)
+			if features.WithLowMemory && c.idleSession.Remove(math.MaxUint64-session.seq) {
+				idleSlots.Release(1)
+			}
 			c.idleSessionLock.Unlock()
 		}
 
@@ -196,7 +210,9 @@ func (c *Client) idleCleanupExpTime(expTime time.Time) {
 		}
 
 		sessionToClose = append(sessionToClose, session)
-		c.idleSession.Remove(key)
+		if features.WithLowMemory && c.idleSession.Remove(key) {
+			idleSlots.Release(1)
+		}
 	}
 	c.idleSessionLock.Unlock()
 
