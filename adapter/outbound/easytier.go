@@ -47,6 +47,8 @@ type EasyTier struct {
 	startMu    sync.Mutex
 	closed     bool
 	readyCh    chan struct{}
+	startErr   error
+	state      string
 	mu         sync.Mutex
 	host       *corehost.Host
 	instance   *corehost.Instance
@@ -179,6 +181,9 @@ func (e *EasyTier) ensureStarted(ctx context.Context) error {
 		}
 		e.startMu.Lock()
 		closed := e.closed
+		if !closed && e.readyCh == nil {
+			e.readyCh = make(chan struct{})
+		}
 		readyCh := e.readyCh
 		e.startMu.Unlock()
 		if closed {
@@ -186,17 +191,10 @@ func (e *EasyTier) ensureStarted(ctx context.Context) error {
 		}
 		e.mu.Lock()
 		instance := e.instance
+		state := e.state
 		e.mu.Unlock()
-		if instance != nil && instance.State() == corehost.StateRunning {
+		if state == "connected" && instance != nil && instance.State() == corehost.StateRunning {
 			return nil
-		}
-		if readyCh == nil {
-			e.startMu.Lock()
-			if e.readyCh == nil {
-				e.readyCh = make(chan struct{})
-			}
-			readyCh = e.readyCh
-			e.startMu.Unlock()
 		}
 		select {
 		case <-ctx.Done():
@@ -229,8 +227,10 @@ func (e *EasyTier) loop() {
 		if closed {
 			return
 		}
+		e.setStatus("starting", nil)
 		err := e.init()
 		if err != nil {
+			e.setStatus("error", err)
 			log.Warnln("[EasyTier](%s) start failed: %v; retry in %s", e.Name(), err, backoff)
 			_ = e.shutdown()
 			timer := time.NewTimer(backoff)
@@ -249,8 +249,13 @@ func (e *EasyTier) loop() {
 			continue
 		}
 		backoff = easyTierMinBackoff
+		e.setStatus("connected", nil)
 		e.signalReady()
 		reason := e.serve()
+		if reason == "" {
+			reason = "instance stopped"
+		}
+		e.setStatus("error", errors.New(reason))
 		_ = e.shutdown()
 		if e.ctx.Err() != nil {
 			return
@@ -260,9 +265,6 @@ func (e *EasyTier) loop() {
 		e.startMu.Unlock()
 		if closed {
 			return
-		}
-		if reason == "" {
-			reason = "instance stopped"
 		}
 		log.Warnln("[EasyTier](%s) %s; restarting in %s", e.Name(), reason, backoff)
 		timer := time.NewTimer(backoff)
@@ -514,6 +516,7 @@ func (e *EasyTier) Close() error {
 		e.readyCh = nil
 	}
 	e.startMu.Unlock()
+	e.setStatus("stopped", nil)
 	return e.shutdown()
 }
 
