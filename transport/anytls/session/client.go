@@ -126,7 +126,7 @@ func (c *Client) getIdleSession() (idle *Session) {
 	if !c.idleSession.IsEmpty() {
 		it := c.idleSession.Iterate()
 		idle = it.Value()
-		if features.WithLowMemory && c.idleSession.Remove(it.Key()) {
+		if c.idleSession.Remove(it.Key()) && features.WithLowMemory {
 			idleSlots.Release(1)
 		}
 	}
@@ -145,7 +145,7 @@ func (c *Client) createSession(ctx context.Context) (*Session, error) {
 	session.dieHook = func() {
 		if !c.disableReuse {
 			c.idleSessionLock.Lock()
-			if features.WithLowMemory && c.idleSession.Remove(math.MaxUint64-session.seq) {
+			if c.idleSession.Remove(math.MaxUint64-session.seq) && features.WithLowMemory {
 				idleSlots.Release(1)
 			}
 			c.idleSessionLock.Unlock()
@@ -210,7 +210,7 @@ func (c *Client) idleCleanupExpTime(expTime time.Time) {
 		}
 
 		sessionToClose = append(sessionToClose, session)
-		if features.WithLowMemory && c.idleSession.Remove(key) {
+		if c.idleSession.Remove(key) && features.WithLowMemory {
 			idleSlots.Release(1)
 		}
 	}
