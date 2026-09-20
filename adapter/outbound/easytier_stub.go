@@ -2,7 +2,11 @@
 
 package outbound
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	C "github.com/metacubex/mihomo/constant"
+)
 
 type EasyTier struct {
 	*Base
@@ -45,4 +49,8 @@ type EasyTierOption struct {
 
 func NewEasyTier(EasyTierOption) (*EasyTier, error) {
 	return nil, fmt.Errorf("EasyTier support is disabled by \"no_easytier\" build tag")
+}
+
+func GetEasyTierStatus(context.Context, C.ProxyAdapter, bool, bool) (EasyTierStatus, error) {
+	return EasyTierStatus{}, fmt.Errorf("EasyTier support is disabled by no_easytier build tag")
 }
