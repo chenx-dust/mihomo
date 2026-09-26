@@ -21,6 +21,7 @@ type EasyTierNodeStatus struct {
 	NextHop                   uint32                     `json:"next-hop"`
 	Cost                      int32                      `json:"cost"`
 	ConnectionType            string                     `json:"connection-type"`
+	FeatureFlags              map[string]bool            `json:"feature-flags,omitempty"`
 	ProxyCIDRs                []string                   `json:"proxy-cidrs"`
 	Listeners                 []string                   `json:"listeners"`
 	Connections               []EasyTierConnectionStatus `json:"connections"`

@@ -4,10 +4,12 @@ package outbound
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
 	apiinstance "github.com/easytier/easytier/easytier-go/proto/api/instance"
+	apicommon "github.com/easytier/easytier/easytier-go/proto/common"
 
 	"github.com/metacubex/mihomo/component/easytier"
 	C "github.com/metacubex/mihomo/constant"
@@ -72,6 +74,7 @@ func (e *EasyTier) status(ctx context.Context, includeDetails bool) (EasyTierSta
 		details.Local.Version = info.GetVersion()
 		details.Local.ProxyCIDRs = info.GetProxyCidrs()
 		details.Local.Listeners = info.GetListeners()
+		details.Local.FeatureFlags = easyTierFeatureFlags(info.GetFeatureFlag())
 		if ip, err := easytier.ParseNodeIPv4(info.GetIpv4Addr()); err == nil {
 			details.Local.IPv4 = ip.String()
 		}
@@ -173,12 +176,28 @@ func easyTierConnections(peer *apiinstance.PeerInfo) []EasyTierConnectionStatus 
 	return result
 }
 
+func easyTierFeatureFlags(flag *apicommon.PeerFeatureFlag) map[string]bool {
+	if flag == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(flag)
+	if err != nil {
+		return nil
+	}
+	var flags map[string]bool
+	if err := json.Unmarshal(encoded, &flags); err != nil || len(flags) == 0 {
+		return nil
+	}
+	return flags
+}
+
 func easyTierRouteNode(route *apiinstance.Route, connections []EasyTierConnectionStatus, latency int64, latencyFirst bool) EasyTierNodeStatus {
 	peer := EasyTierNodeStatus{
 		Hostname: route.GetHostname(), LatencyMS: latency,
 		PeerID: route.GetPeerId(), InstanceID: route.GetInstId(), Version: route.GetVersion(),
 		NextHop: route.GetNextHopPeerId(), Cost: route.GetCost(), ProxyCIDRs: route.GetProxyCidrs(),
-		Connections: connections,
+		FeatureFlags: easyTierFeatureFlags(route.GetFeatureFlag()),
+		Connections:  connections,
 	}
 	if route.GetPathLatency() > 0 {
 		value := route.GetPathLatency()
