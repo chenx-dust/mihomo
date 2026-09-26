@@ -237,9 +237,11 @@ func TestEasyTierRouteDetailsFollowRoutingPreference(t *testing.T) {
 	next := uint32(7)
 	cost := int32(2)
 	route := &apiinstance.Route{PeerId: 42, NextHopPeerId: 42, Cost: 1, Hostname: "peer", Version: "2.5",
-		ProxyCidrs: []string{"192.168.2.0/24"}, NextHopPeerIdLatencyFirst: &next, CostLatencyFirst: &cost}
+		ProxyCidrs: []string{"192.168.2.0/24"}, NextHopPeerIdLatencyFirst: &next, CostLatencyFirst: &cost,
+		FeatureFlag: &apicommon.PeerFeatureFlag{IsPublicServer: true, AvoidRelayData: true}}
 	direct := easyTierRouteNode(route, nil, 23, false)
-	if direct.ConnectionType != "direct" || direct.NextHop != 42 || direct.Cost != 1 || direct.Version != "2.5" {
+	if direct.ConnectionType != "direct" || direct.NextHop != 42 || direct.Cost != 1 || direct.Version != "2.5" ||
+		!direct.FeatureFlags["is_public_server"] || !direct.FeatureFlags["avoid_relay_data"] || len(direct.FeatureFlags) != 2 {
 		t.Fatalf("unexpected direct route: %+v", direct)
 	}
 	relayed := easyTierRouteNode(route, nil, 23, true)
@@ -247,7 +249,7 @@ func TestEasyTierRouteDetailsFollowRoutingPreference(t *testing.T) {
 		t.Fatalf("unexpected relayed route: %+v", relayed)
 	}
 	unknown := easyTierRouteNode(&apiinstance.Route{PeerId: 42}, nil, 0, false)
-	if unknown.ConnectionType != "" {
+	if unknown.ConnectionType != "" || unknown.FeatureFlags != nil {
 		t.Fatal("missing next hop presented as connected")
 	}
 }
