@@ -27,19 +27,20 @@ type ProxyAdapter interface {
 }
 
 type Base struct {
-	name   string
-	addr   string
-	tp     C.AdapterType
-	pdName string
-	udp    bool
-	xudp   bool
-	tfo    bool
-	mpTcp  bool
-	iface  string
-	rmark  int
-	prefer C.DNSPrefer
-	dialer C.Dialer
-	id     uuid.UUID
+	name    string
+	addr    string
+	tp      C.AdapterType
+	pdName  string
+	udp     bool
+	xudp    bool
+	tfo     bool
+	mpTcp   bool
+	iface   string
+	rmark   int
+	prefer  C.DNSPrefer
+	dialer  C.Dialer
+	id      uuid.UUID
+	traffic C.TrafficCounter
 }
 
 type BaseOption struct {
@@ -71,6 +72,10 @@ func NewBase(opt BaseOption) *Base {
 		prefer: opt.Prefer,
 		id:     utils.NewUUIDV4(),
 	}
+}
+
+func (b *Base) TrafficCounter() *C.TrafficCounter {
+	return &b.traffic
 }
 
 // Name implements C.ProxyAdapter
@@ -223,10 +228,15 @@ func (b *BasicOption) NewTunnel() C.Tunnel {
 }
 
 type conn struct {
+	traffic *C.TrafficCounter
 	N.ExtendedConn
 	chain       C.Chain
 	pdChain     C.Chain
 	adapterAddr string
+}
+
+func (c *conn) TrafficCounter() *C.TrafficCounter {
+	return c.traffic
 }
 
 func (c *conn) RemoteDestination() string {
@@ -290,12 +300,13 @@ func NewConn(c net.Conn, a C.ProxyAdapter) C.Conn {
 	default:
 		c = N.NewDeadlineConn(c) // most conn from outbound can't handle readDeadline correctly
 	}
-	cc := &conn{N.NewExtendedConn(c), nil, nil, a.Addr()}
+	cc := &conn{a.TrafficCounter(), N.NewExtendedConn(c), nil, nil, a.Addr()}
 	cc.AppendToChains(a)
 	return cc
 }
 
 type packetConn struct {
+	traffic *C.TrafficCounter
 	N.EnhancePacketConn
 	chain       C.Chain
 	pdChain     C.Chain
@@ -303,6 +314,10 @@ type packetConn struct {
 	connID      string
 	adapterAddr string
 	resolveUDP  func(ctx context.Context, metadata *C.Metadata) error
+}
+
+func (c *packetConn) TrafficCounter() *C.TrafficCounter {
+	return c.traffic
 }
 
 func (c *packetConn) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
@@ -361,7 +376,7 @@ func NewPacketConn(pc net.PacketConn, a ProxyAdapter) C.PacketConn {
 	default:
 		epc = N.NewDeadlineEnhancePacketConn(epc) // most conn from outbound can't handle readDeadline correctly
 	}
-	cpc := &packetConn{epc, nil, nil, a.Name(), utils.NewUUIDV4().String(), a.Addr(), a.ResolveUDP}
+	cpc := &packetConn{a.TrafficCounter(), epc, nil, nil, a.Name(), utils.NewUUIDV4().String(), a.Addr(), a.ResolveUDP}
 	cpc.AppendToChains(a)
 	return cpc
 }
