@@ -39,6 +39,7 @@ type tcpTracker struct {
 	manager *Manager
 
 	pushToManager bool `json:"-"`
+	nodeTraffic   *C.TrafficCounter
 }
 
 func (tt *tcpTracker) ID() string {
@@ -54,6 +55,7 @@ func (tt *tcpTracker) Read(b []byte) (int, error) {
 	download := int64(n)
 	if tt.pushToManager {
 		tt.manager.PushDownloaded(tt.Conn.Chains().Last(), download)
+		tt.nodeTraffic.AddDownload(download)
 	}
 	tt.DownloadTotal.Add(download)
 	return n, err
@@ -64,6 +66,7 @@ func (tt *tcpTracker) ReadBuffer(buffer *buf.Buffer) (err error) {
 	download := int64(buffer.Len())
 	if tt.pushToManager {
 		tt.manager.PushDownloaded(tt.Chains().Last(), download)
+		tt.nodeTraffic.AddDownload(download)
 	}
 	tt.DownloadTotal.Add(download)
 	return
@@ -73,6 +76,7 @@ func (tt *tcpTracker) UnwrapReader() (io.Reader, []N.CountFunc) {
 	return tt.Conn, []N.CountFunc{func(download int64) {
 		if tt.pushToManager {
 			tt.manager.PushDownloaded(tt.Chains().Last(), download)
+			tt.nodeTraffic.AddDownload(download)
 		}
 		tt.DownloadTotal.Add(download)
 	}}
@@ -83,6 +87,7 @@ func (tt *tcpTracker) Write(b []byte) (int, error) {
 	upload := int64(n)
 	if tt.pushToManager {
 		tt.manager.PushUploaded(tt.Chains().Last(), upload)
+		tt.nodeTraffic.AddUpload(upload)
 	}
 	tt.UploadTotal.Add(upload)
 	return n, err
@@ -93,6 +98,7 @@ func (tt *tcpTracker) WriteBuffer(buffer *buf.Buffer) (err error) {
 	err = tt.Conn.WriteBuffer(buffer)
 	if tt.pushToManager {
 		tt.manager.PushUploaded(tt.Chains().Last(), upload)
+		tt.nodeTraffic.AddUpload(upload)
 	}
 	tt.UploadTotal.Add(upload)
 	return
@@ -102,6 +108,7 @@ func (tt *tcpTracker) UnwrapWriter() (io.Writer, []N.CountFunc) {
 	return tt.Conn, []N.CountFunc{func(upload int64) {
 		if tt.pushToManager {
 			tt.manager.PushUploaded(tt.Chains().Last(), upload)
+			tt.nodeTraffic.AddUpload(upload)
 		}
 		tt.UploadTotal.Add(upload)
 	}}
@@ -136,6 +143,9 @@ func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.R
 	}
 
 	if pushToManager {
+		tt.nodeTraffic = nodeTrafficForConnection(conn)
+		tt.nodeTraffic.AddUpload(uploadTotal)
+		tt.nodeTraffic.AddDownload(downloadTotal)
 		if uploadTotal > 0 {
 			manager.PushUploaded(tt.Chains().Last(), uploadTotal)
 		}
@@ -159,6 +169,7 @@ type udpTracker struct {
 	manager *Manager
 
 	pushToManager bool `json:"-"`
+	nodeTraffic   *C.TrafficCounter
 }
 
 func (ut *udpTracker) ID() string {
@@ -174,6 +185,7 @@ func (ut *udpTracker) ReadFrom(b []byte) (int, net.Addr, error) {
 	download := int64(n)
 	if ut.pushToManager {
 		ut.manager.PushDownloaded(ut.Chains().Last(), download)
+		ut.nodeTraffic.AddDownload(download)
 	}
 	ut.DownloadTotal.Add(download)
 	return n, addr, err
@@ -184,6 +196,7 @@ func (ut *udpTracker) WaitReadFrom() (data []byte, put func(), addr net.Addr, er
 	download := int64(len(data))
 	if ut.pushToManager {
 		ut.manager.PushDownloaded(ut.Chains().Last(), download)
+		ut.nodeTraffic.AddDownload(download)
 	}
 	ut.DownloadTotal.Add(download)
 	return
@@ -194,6 +207,7 @@ func (ut *udpTracker) WriteTo(b []byte, addr net.Addr) (int, error) {
 	upload := int64(n)
 	if ut.pushToManager {
 		ut.manager.PushUploaded(ut.Chains().Last(), upload)
+		ut.nodeTraffic.AddUpload(upload)
 	}
 	ut.UploadTotal.Add(upload)
 	return n, err
@@ -228,6 +242,9 @@ func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, ru
 	}
 
 	if pushToManager {
+		ut.nodeTraffic = nodeTrafficForConnection(conn)
+		ut.nodeTraffic.AddUpload(uploadTotal)
+		ut.nodeTraffic.AddDownload(downloadTotal)
 		if uploadTotal > 0 {
 			manager.PushUploaded(ut.Chains().Last(), uploadTotal)
 		}
