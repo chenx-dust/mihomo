@@ -69,6 +69,7 @@ var DefaultTestURL = "https://www.gstatic.com/generate_204"
 var ErrNotSupport = errors.New("no support")
 
 type Connection interface {
+	TrafficCounter() *TrafficCounter
 	Chains() Chain
 	ProviderChains() Chain
 	AppendToChains(adapter ProxyAdapter)
@@ -125,6 +126,7 @@ type ProxyInfo struct {
 }
 
 type ProxyAdapter interface {
+	TrafficCounter() *TrafficCounter
 	Name() string
 	Type() AdapterType
 	Addr() string
