@@ -11,7 +11,7 @@ type NodeTraffic struct {
 
 func nodeTrafficForConnection(conn C.Connection) *C.TrafficCounter {
 	name := conn.Chains().Last()
-	if name == "" || name == "DIRECT" {
+	if name == "" {
 		return nil
 	}
 	return conn.TrafficCounter()
