@@ -11,16 +11,9 @@ import (
 	"github.com/metacubex/mihomo/common/xsync"
 	"github.com/metacubex/mihomo/component/iface"
 	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
 )
 
 var disableLoopBackDetector, _ = strconv.ParseBool(os.Getenv("DISABLE_LOOPBACK_DETECTOR"))
-
-func init() {
-	if features.Android || features.IOS {
-		disableLoopBackDetector = true
-	}
-}
 
 var ErrReject = errors.New("reject loopback connection")
 
