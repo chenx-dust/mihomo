@@ -397,6 +397,7 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 		Name:                                  tunName,
 		MTU:                                   tunMTU,
 		GSO:                                   options.GSO,
+		MultiQueue:                            options.MultiQueue,
 		Inet4Address:                          options.Inet4Address,
 		Inet6Address:                          options.Inet6Address,
 		DNSMode:                               options.DNSMode,
