@@ -21,6 +21,7 @@ type Tun struct {
 	MTU                                   uint32         `yaml:"mtu" json:"mtu,omitempty"`
 	GSO                                   bool           `yaml:"gso" json:"gso,omitempty"`
 	GSOMaxSize                            uint32         `yaml:"gso-max-size" json:"gso-max-size,omitempty"`
+	MultiQueue                            bool           `yaml:"multi-queue" json:"multi-queue,omitempty"`
 	Inet4Address                          []netip.Prefix `yaml:"inet4-address" json:"inet4-address,omitempty"`
 	Inet6Address                          []netip.Prefix `yaml:"inet6-address" json:"inet6-address,omitempty"`
 	IPRoute2TableIndex                    int            `yaml:"iproute2-table-index" json:"iproute2-table-index,omitempty"`
@@ -127,6 +128,9 @@ func (t *Tun) Equal(other Tun) bool {
 		return false
 	}
 	if t.GSOMaxSize != other.GSOMaxSize {
+		return false
+	}
+	if t.MultiQueue != other.MultiQueue {
 		return false
 	}
 	if !slices.Equal(t.Inet4Address, other.Inet4Address) {
